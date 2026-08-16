@@ -81,6 +81,17 @@
        * first and turns to hauling once it has the numbers to spare. */
       u.SEEK_FOOD = Math.max(u.SEEK_FOOD, 0.28 * carryRoom * (ctx.nearestFood ? 1 : 0.4));
     }
+    /* EXPAND must not bankrupt the colony. When stored biomass runs low,
+     * organisms still forage between excavation shifts — smart play is
+     * alternating GATHER and EXPAND, but the AI should not force that
+     * micromanagement every time. */
+    if (org.directive === 'EXPAND' && ctx.canEatPlants && ctx.colonyNeedsIncome) {
+      const carryRoom = ctx.carryRoom != null ? ctx.carryRoom : 1;
+      u.SEEK_FOOD = Math.max(u.SEEK_FOOD, 0.38 * carryRoom * (ctx.nearestFood ? 1 : 0.4));
+      u.RETURN_TO_CORE = Math.max(u.RETURN_TO_CORE, org.carrying > 0 ? 0.95 : 0.28 * carryRoom);
+      /* Income beats excavation when the Core is running dry. */
+      if (ctx.colonyNeedsIncome && ctx.digSite) u.EXCAVATE *= 0.4;
+    }
     // Thirst curves the same way hunger does, so an organism engineered with a
     // high water_requirement genuinely spends more of its life walking to water
     // instead of doing what the player asked of it.
