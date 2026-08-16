@@ -75,8 +75,8 @@
       isPlayer: !!opts.isPlayer,
       x: opts.x, y: opts.y,
       radius: 7,
-      biomass: opts.biomass != null ? opts.biomass : 60,
-      energy: opts.energy != null ? opts.energy : 55,
+      biomass: opts.biomass != null ? opts.biomass : 80,
+      energy: opts.energy != null ? opts.energy : 70,
       biomassCap: BIOMASS_CAP,
       energyCap: ENERGY_CAP,
       color: opts.color || '#33e6b0',
@@ -335,8 +335,8 @@
    * around minute three, and a discovery around minute five; a rival army at
    * minute one deletes that entirely. Rivals are the escalation *after* the
    * player has found their footing, so they arrive on a timer and ramp. */
-  const RIVAL_WAKE_BASE = 240;    // sim-seconds before the first rival deploys
-  const RIVAL_WAKE_STAGGER = 90;  // and each subsequent one waits longer
+  const RIVAL_WAKE_BASE = 360;    // sim-seconds before the first rival deploys
+  const RIVAL_WAKE_STAGGER = 120; // and each subsequent one waits longer
   const RIVAL_GROWTH_PERIOD = 150; // how often a rival's ceiling rises
 
   function isAwake(colony, simTime) {

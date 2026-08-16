@@ -10,9 +10,9 @@
 (function (CM) {
   'use strict';
 
-  const OBSERVATION_THRESHOLD = 4;
+  const OBSERVATION_THRESHOLD = 3;
   const EXTRACT_CREDIT = 3;
-  const ENCOUNTER_CREDIT = 1;
+  const ENCOUNTER_CREDIT = 1.25;
   const SAMPLE_TTL = 180; // seconds of sim time before an unclaimed sample decays
 
   function newDiscoveryState() {
@@ -20,7 +20,10 @@
       events: [],
       nextEventId: 1,
       observations: {},     // traitId -> count
-      discoveredTraits: {},  // traitId -> true
+      /* Scouts start knowing how to put legs and eyes on a body — the same
+       * floor rivals get from seedKnowledge. Without this the opening minutes
+       * are pure attrition before the designer unlocks at all. */
+      discoveredTraits: { basic_legs: true, vision: true },
       knownSpecies: {},      // speciesId -> true
       samples: []            // {id, x, y, speciesId, traits, name, ttl}
     };
@@ -64,7 +67,7 @@
    * shell or a set of claws is visible from across a meadow, but nothing
    * about standing near an animal reveals its biochemistry. Those still need
    * a fight or a sample, which is what keeps EXTRACT worth doing. */
-  const SIGHTING_RATE = 0.05;     // credit per second of sustained proximity
+  const SIGHTING_RATE = 0.075;    // credit per second of sustained proximity
 
   function observeNearby(game, bus, observer, targets, dt) {
     if (observer.ownerId !== 'player') return;   // only the player runs a lab
@@ -196,7 +199,7 @@
   }
 
   CM.discovery = {
-    OBSERVATION_THRESHOLD, newDiscoveryState, pushEvent, recordSighting,
+    OBSERVATION_THRESHOLD, newDiscoveryState, pushEvent, recordSighting, creditTrait,
     recordEncounter, spawnSample, tickSamples, extractSample, observationProgress, observeNearby,
     SIGHTING_RATE,
     researchInProgress, observedDamageType, observedDefense

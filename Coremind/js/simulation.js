@@ -26,7 +26,7 @@
   const WATER_SPEED_MUL = 0.4;
   const DRINK_DIST = 1.6;
   const BURROW_DURATION = 4.5, BURROW_COOLDOWN = 14;
-  const UPKEEP_BASE = 0.022, UPKEEP_PER_TRAIT = 0.006;   // biomass/sec per organism
+  const UPKEEP_BASE = 0.015, UPKEEP_PER_TRAIT = 0.0045;   // biomass/sec per organism
   const DIG_REACH = 1.4;
 
   // -- population seeding ---------------------------------------------------
@@ -174,7 +174,17 @@
      * deposits are worth contesting. Hunger is still served by ordinary
      * forage — a starving organism eats what is nearest. */
     let depositTarget = null;
-    if (!isWild(org) && org.directive === 'GATHER' && org.hunger < 70) {
+    let colonyNeedsIncome = false;
+    if (!isWild(org)) {
+      const colony = colonyOf(game, org);
+      if (colony) {
+        colonyNeedsIncome = colony.biomass < Math.max(120, colony.biomassCap * 0.55)
+          || colony.energy < Math.max(80, colony.energyCap * 0.4);
+      }
+    }
+    const wantsDeposit = !isWild(org) && org.hunger < 70
+      && (org.directive === 'GATHER' || (org.directive === 'EXPAND' && colonyNeedsIncome));
+    if (wantsDeposit) {
       depositTarget = W.findNearestDeposit(game.world, org.x, org.y, senseR * 2.2);
       if (depositTarget) nearestFood = { x: depositTarget.x, y: depositTarget.y, amount: depositTarget.remaining, deposit: depositTarget };
     }
@@ -224,7 +234,7 @@
 
     return { nearestThreat, nearestPrey, nearestFood, nearestWater, nearestCuriosity, canEatPlants, canHunt,
       newSightings, observable, colonyRoom, carryRoom: K.clamp01(1 - org.carrying / MAX_CARRY),
-      digSite, shelter, tempStress: tempStressNow, defendRadius: senseR };
+      digSite, shelter, tempStress: tempStressNow, defendRadius: senseR, colonyNeedsIncome };
   }
 
   // -- movement ---------------------------------------------------------------
@@ -645,7 +655,7 @@
    * deep a colony has cut and how much it has built there, so the underground
    * is contested ground rather than a safe basement — and the abyssal tier,
    * where the endgame sits, is the most dangerous place on the map. */
-  const DEEP_SPAWN_INTERVAL = 9;
+  const DEEP_SPAWN_INTERVAL = 11;
   function deepFaunaTick(game, bus, dt) {
     game.__deepAcc = (game.__deepAcc || 0) + dt;
     if (game.__deepAcc < DEEP_SPAWN_INTERVAL) return;
@@ -658,7 +668,7 @@
     // Weight by depth: deep works attract worse things, more often.
     const target = chambers[Math.floor(Math.random() * chambers.length)];
     const depth = target.depth || 1;
-    if (Math.random() > 0.22 * depth) return;
+    if (Math.random() > 0.16 * depth) return;
 
     const candidates = T.WILD_SPECIES.filter(sp => sp.subterranean && sp.subterranean <= depth);
     if (!candidates.length) return;
@@ -715,7 +725,7 @@
         // Hardened ground bleeds slower. A redoubt in the middle of a network
         // protects the chambers around it, not just the organisms.
         const hardness = 1 + CM.structures.defenseAt(game, site.colonyId, site.x, site.y);
-        site.integrity = (site.integrity == null ? 100 : site.integrity) - (gnawers - guards) * 2.2 * step / hardness;
+        site.integrity = (site.integrity == null ? 100 : site.integrity) - (gnawers - guards) * 1.6 * step / hardness;
         if (site.integrity <= 0) {
           const colony = game.coloniesById[site.colonyId];
           // Whatever was besieging this chamber loses its reason to stand
@@ -910,7 +920,7 @@
     }
 
     // slow passive core regeneration — the Coremind's own baseline metabolism
-    game.core.energy = Math.min(game.core.energyCap, game.core.energy + 0.9 * dt);
+    game.core.energy = Math.min(game.core.energyCap, game.core.energy + 1.05 * dt);
 
     /* Upkeep. Without it a colony's income scales with its population while
      * nothing scales against it, so biomass runs away into the thousands and
@@ -958,11 +968,18 @@
     if (!colony || !colony.alive || game.globalDirective !== 'EXPAND') return;
     colony.autoDigTimer = (colony.autoDigTimer || 0) - dt;
     if (colony.autoDigTimer > 0) return;
-    colony.autoDigTimer = 12;
+    colony.autoDigTimer = 6;
     const pending = CM.structures.ofColony(game, colony.id).filter(s => !s.done).length;
     if (pending >= 2) return;
     const plan = CM.structures.suggestExpansion(game, colony);
-    if (plan) CM.structures.queue(game, bus, colony, plan.typeKey, plan.x, plan.y);
+    if (!plan) return;
+    const c = CM.structures.cost(plan.typeKey);
+    /* Do not spend the colony's last reserves on a new site — smart play
+     * alternates gathering and expanding, and the auto-planner should leave
+     * enough biomass to keep organisms alive while they dig. */
+    const reserve = Math.min(20, Math.max(8, colony.pop * 0.4));
+    if (colony.biomass < c.biomass + reserve || colony.energy < c.energy + 10) return;
+    CM.structures.queue(game, bus, colony, plan.typeKey, plan.x, plan.y);
   }
 
   /* A Core with biomass left is never a dead end. If a colony loses every
@@ -975,7 +992,7 @@
    * is a distributed intelligence; the Core regrowing a body is what that
    * means. Applied to every colony on the same terms, so a mauled rival can
    * also come back rather than being quietly out of the game forever. */
-  const RESEED_INTERVAL = 18;
+  const RESEED_INTERVAL = 14;
   function reseedEmptyColonies(game, bus, dt) {
     if (!game.colonies) return;
     for (const colony of game.colonies) {

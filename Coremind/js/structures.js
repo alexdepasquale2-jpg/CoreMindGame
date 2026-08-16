@@ -43,25 +43,25 @@
     SHAFT: {
       key: 'SHAFT', name: 'Access Shaft', icon: '\u{1F573}', depth: 1,
       blurb: 'Sinks a new entrance. The only chamber that can be dug away from an existing network.',
-      cost: { biomass: 24, energy: 14 }, work: 26, radius: 5,
+      cost: { biomass: 20, energy: 12 }, work: 22, radius: 5,
       minDigging: 0, standalone: true
     },
     WARREN: {
       key: 'WARREN', name: 'Warren', icon: '\u{1F3E0}', depth: 1,
       blurb: 'Shelter. Organisms inside are hidden from predators and shielded from temperature extremes.',
-      cost: { biomass: 30, energy: 18 }, work: 34, radius: 7,
-      minDigging: 10, standalone: false
+      cost: { biomass: 26, energy: 16 }, work: 30, radius: 7,
+      minDigging: 8, standalone: false
     },
     CISTERN: {
       key: 'CISTERN', name: 'Cistern', icon: '\u{1F4A7}', depth: 1,
       blurb: 'Taps groundwater. Organisms can drink here, which makes dry inland ground survivable.',
-      cost: { biomass: 28, energy: 22 }, work: 40, radius: 6,
-      minDigging: 14, standalone: false
+      cost: { biomass: 24, energy: 18 }, work: 34, radius: 6,
+      minDigging: 12, standalone: false
     },
     GRANARY: {
       key: 'GRANARY', name: 'Granary', icon: '\u{1F33E}', depth: 1,
       blurb: 'Cold storage. Raises how much biomass the Core can hold.',
-      cost: { biomass: 34, energy: 16 }, work: 38, radius: 6,
+      cost: { biomass: 30, energy: 14 }, work: 34, radius: 6,
       storageBonus: 180,
       minDigging: 10, standalone: false
     },
@@ -70,8 +70,8 @@
     DESCENT: {
       key: 'DESCENT', name: 'Descent', icon: '\u{2B07}', depth: 2,
       blurb: 'Cuts down into the deep galleries. Everything at this depth hangs off one.',
-      cost: { biomass: 46, energy: 34 }, work: 62, radius: 6,
-      minDigging: 22, standalone: false
+      cost: { biomass: 38, energy: 28 }, work: 50, radius: 6,
+      minDigging: 18, standalone: false
     },
     NURSERY: {
       key: 'NURSERY', name: 'Nursery', icon: '\u{1F423}', depth: 2,
@@ -96,18 +96,18 @@
     FUNGARIUM: {
       key: 'FUNGARIUM', name: 'Fungarium', icon: '\u{1F344}', depth: 2,
       blurb: 'Cultivated fungus. Feeds organisms underground, so a colony can live without the surface.',
-      cost: { biomass: 42, energy: 24 }, work: 50, radius: 7,
+      cost: { biomass: 36, energy: 20 }, work: 42, radius: 7,
       feedsRate: 9,
-      minDigging: 20, standalone: false
+      minDigging: 16, standalone: false
     },
 
     // -- depth 3: the abyssal reach — endgame ------------------------------
     GEOTHERMAL: {
       key: 'GEOTHERMAL', name: 'Geothermal Tap', icon: '\u{1F30B}', depth: 3,
       blurb: 'Draws heat from the deep rock. A large, permanent energy income.',
-      cost: { biomass: 60, energy: 46 }, work: 84, radius: 8,
+      cost: { biomass: 50, energy: 38 }, work: 70, radius: 8,
       energyRate: 3.2,
-      minDigging: 30, standalone: false
+      minDigging: 26, standalone: false
     },
     VEINWORKS: {
       key: 'VEINWORKS', name: 'Veinworks', icon: '\u{26CF}', depth: 3,
@@ -119,9 +119,9 @@
     SANCTUM: {
       key: 'SANCTUM', name: 'Deep Sanctum', icon: '\u{1F52E}', depth: 3,
       blurb: 'A second seat for the Coremind, buried beyond reach. Completing one secures the colony permanently.',
-      cost: { biomass: 140, energy: 120 }, work: 190, radius: 10,
+      cost: { biomass: 100, energy: 85 }, work: 140, radius: 10,
       endgame: true,
-      minDigging: 40, standalone: false
+      minDigging: 28, standalone: false
     }
   };
   const TYPE_KEYS = Object.keys(TYPES);
@@ -275,7 +275,7 @@
    * burrowers can queue chambers but will crawl through them. */
   function addWork(game, bus, site, org, dt) {
     if (site.done) return false;
-    const rate = 0.5 + (org.stats.digging || 0) * 0.055;
+    const rate = 0.62 + (org.stats.digging || 0) * 0.058;
     site.work += rate * dt;
     if (site.work < site.workNeeded) return false;
     site.done = true;
@@ -287,6 +287,12 @@
         message: `${TYPES[site.type].name} complete. ${TYPES[site.type].blurb}`,
         x: site.x, y: site.y, structureId: site.id
       });
+      /* Excavation teaches burrowing before subterranean fauna appear — the
+       * first shaft is slow without the trait, and waiting for a Rock Gnawer
+       * to spawn made the deep arc unreachable in ordinary play. */
+      if (site.type === 'SHAFT') {
+        CM.discovery.creditTrait(game, bus, 'burrowing', CM.discovery.OBSERVATION_THRESHOLD);
+      }
     }
     /* Cutting deep is how veins are found. Prospecting is a *consequence* of
      * digging rather than a separate action, so the reward for pushing the
@@ -464,29 +470,37 @@
     for (const s of completed(game, colony.id)) have[s.type] = (have[s.type] || 0) + 1;
     const deepest = deepestOf(game, colony.id);
 
-    // Shallow needs first — a colony that cannot drink has no business
-    // sinking a descent.
+    /* Once a colony can feed itself underground, optional chambers should not
+     * eat the biomass the abyssal push needs. Smart play is descent →
+     * fungarium → geothermal → sanctum; padding with nurseries first made
+     * the endgame unreachable before income could catch up. */
+    if (have.DESCENT && have.FUNGARIUM && !have.SANCTUM) {
+      if (colony.losses > 5 && !have.REDOUBT) return 'REDOUBT';
+      if (deepest < 3 && !have.GEOTHERMAL) return 'GEOTHERMAL';
+      if (deepest >= 3) return 'SANCTUM';
+    }
+
     const dry = !W.findNearestWater(game.world, colony.x, colony.y, 30);
+    if (deepest >= 1 && !have.DESCENT) return 'DESCENT';
+    if (deepest >= 2 && !have.FUNGARIUM) return 'FUNGARIUM';
     if (dry && !have.CISTERN) return 'CISTERN';
     if (!have.WARREN) return 'WARREN';
     if (colony.biomass >= colony.biomassCap * 0.95 && !have.GRANARY) return 'GRANARY';
 
-    // Then downward, one stratum at a time.
-    if (deepest >= 1 && !have.DESCENT) return 'DESCENT';
     if (deepest >= 2) {
       if (colony.losses > 6 && !have.REDOUBT) return 'REDOUBT';
       if (!have.NURSERY) return 'NURSERY';
-      if (!have.FUNGARIUM) return 'FUNGARIUM';
       if (!have.VAULT) return 'VAULT';
       if (!have.GEOTHERMAL) return 'GEOTHERMAL';
       if (nearestVein(game, colony.x, colony.y, 40)) return 'VEINWORKS';
     }
-    if (deepest >= 3 && !have.SANCTUM && colony.biomass > 150) return 'SANCTUM';
+    if (deepest >= 3 && !have.SANCTUM && colony.biomass > 80) return 'SANCTUM';
 
-    const pool = deepest >= 2
-      ? ['WARREN', 'CISTERN', 'GRANARY', 'NURSERY', 'REDOUBT', 'FUNGARIUM']
-      : ['WARREN', 'CISTERN', 'GRANARY'];
-    return pool[Math.floor(Math.random() * pool.length)];
+    const pool = (deepest >= 2
+      ? ['CISTERN', 'GRANARY', 'NURSERY', 'REDOUBT', 'VAULT']
+      : ['CISTERN', 'GRANARY']).filter(k => !have[k]);
+    if (pool.length) return pool[Math.floor(Math.random() * pool.length)];
+    return deepest >= 2 ? 'REDOUBT' : 'WARREN';
   }
 
   function destroy(game, site) {

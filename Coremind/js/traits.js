@@ -135,7 +135,7 @@
   for (const cat of CATEGORIES) TRAITS_BY_CATEGORY[cat] = [];
   for (const t of TRAITS) { TRAITS_BY_ID[t.id] = t; TRAITS_BY_CATEGORY[t.category].push(t); }
 
-  const BASE_CREATE_COST = { biomass: 18, energy: 12 };
+  const BASE_CREATE_COST = { biomass: 15, energy: 10 };
 
   /* Stats where a *lower* number is the better outcome. Everything that
    * reasons about whether a modifier is a benefit or a cost — the synergy
@@ -244,6 +244,8 @@
   const WILD_SPECIES = [
     { id: 'grazer', name: 'Grazer', tier: 'prey', diet: 'herbivore',
       traits: ['basic_legs', 'vision'], color: '#8fd15a' },
+    { id: 'tunnel_mole', name: 'Tunnel Mole', tier: 'prey', diet: 'herbivore',
+      traits: ['burrowing', 'basic_legs', 'vibration_sense'], color: '#9a7b5a' },
     { id: 'thistleback', name: 'Thistleback', tier: 'prey', diet: 'herbivore',
       traits: ['armor', 'basic_legs'], color: '#c9b25a' },
     { id: 'stalker', name: 'Stalker', tier: 'predator', diet: 'carnivore',

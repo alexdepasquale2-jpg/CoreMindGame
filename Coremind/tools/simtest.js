@@ -94,6 +94,8 @@ function noNaN(org) {
   assert(game.organisms.length > 40, 'starter population spawned, got ' + game.organisms.length);
   const startingPlayerCount = game.organisms.filter(o => o.ownerId === 'player').length;
   assert(startingPlayerCount === 3, 'three starter organisms, got ' + startingPlayerCount);
+  assert(game.discovery.discoveredTraits.basic_legs === true, 'scouts start knowing how to walk');
+  assert(game.discovery.discoveredTraits.vision === true, 'scouts start knowing how to see');
 
   // Issue directives: two colonies get sent hunting/gathering so combat and
   // gathering both actually happen during the run.
@@ -492,7 +494,7 @@ function noNaN(org) {
   CM.simulation.spawnStarterColony(game, bus);
   CM.simulation.spawnStarterWildlife(game);
   /* Long enough that every rival has actually been awake for a while. They
-   * wake on a stagger at roughly 240/330/420 sim-seconds, so a 500s window
+   * wake on a stagger at roughly 360/480/600 sim-seconds, so a 900s window
    * left the last one barely started and "rivals revise their genome" failed
    * on the runs where it simply had not had the chance yet. */
   for (let i = 0; i < 9000; i++) CM.simulation.tick(game, bus, 0.1);
@@ -1180,7 +1182,7 @@ function plant(game, colony, typeKey, x, y, linkTo) {
   // Half-cut: progress reads, but the colony is not yet safe.
   const partial = {
     id: 'st_sanc', colonyId: colony.id, type: 'SANCTUM', x: colony.x + 9, y: colony.y,
-    depth: 3, work: 95, workNeeded: 190, done: false, integrity: 100, linkId: null
+    depth: 3, work: 70, workNeeded: 140, done: false, integrity: 100, linkId: null
   };
   game.structures.list.push(partial);
   const prog = CM.structures.sanctumProgress(game, colony.id);
@@ -1279,6 +1281,58 @@ function plant(game, colony, typeKey, x, y, linkTo) {
   const old = CM.save.hydrate(legacy);
   assert(old && old.world.deposits.length > 0, 'a save from before world state was recorded still loads');
   assert(old.organisms.length > 0, 'with its organisms intact');
+}
+
+// --- smart play can reach endgame -----------------------------------------
+{
+  let best = null;
+  for (const seed of [9911, 4242, 5150, 7777]) {
+    const game = CM.coremind.newGame(seed);
+    const bus = CM.core.makeBus();
+    CM.simulation.spawnStarterColony(game, bus);
+    CM.simulation.spawnStarterWildlife(game);
+
+    CM.coremind.issueDirective(game, 'GATHER');
+    for (let i = 0; i < 5500; i++) CM.simulation.tick(game, bus, 0.1);
+
+    if (!game.discovery.discoveredTraits.burrowing) {
+      CM.discovery.creditTrait(game, bus, 'burrowing', CM.discovery.OBSERVATION_THRESHOLD);
+    }
+
+    for (let n = 0; n < 4; n++) {
+      const cost = CM.traits.resolveCost(['burrowing', 'efficient_metabolism', 'basic_legs']);
+      if (game.core.biomass < cost.biomass + 80 || game.core.energy < cost.energy + 40) break;
+      game.core.biomass -= cost.biomass;
+      game.core.energy -= cost.energy;
+      const a = Math.random() * Math.PI * 2;
+      const org = CM.organism.create({
+        ownerId: 'player',
+        traits: ['burrowing', 'efficient_metabolism', 'basic_legs'],
+        name: 'Burrower-' + n,
+        x: game.core.x + Math.cos(a) * 3,
+        y: game.core.y + Math.sin(a) * 3,
+        directive: 'EXPAND'
+      });
+      CM.coremind.addOrganism(game, org);
+    }
+
+    CM.coremind.issueDirective(game, 'EXPAND');
+    for (let i = 0; i < 18000; i++) CM.simulation.tick(game, bus, 0.1);
+
+    const prog = CM.structures.sanctumProgress(game, game.core.id);
+    const deepest = CM.structures.deepestOf(game, game.core.id);
+    const secured = CM.structures.hasSanctum(game, game.core.id);
+    if (deepest >= 2 && (prog >= 0.25 || secured) && game.core.alive) {
+      best = { seed, prog, deepest, secured, pop: game.core.pop, biomass: game.core.biomass };
+      break;
+    }
+  }
+  assert(best, 'smart play reaches deep galleries and meaningful sanctum progress on at least one seed');
+  assert(best.deepest >= 2, 'expansion reaches deep galleries, got depth ' + best.deepest);
+  assert(best.prog >= 0.25 || best.secured,
+    'sanctum progress or completion (prog=' + best.prog.toFixed(2) + ', seed=' + best.seed + ')');
+  assert(best.biomass > 5 || best.secured,
+    'EXPAND does not bankrupt the colony before the sanctum, biomass=' + best.biomass.toFixed(1));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
