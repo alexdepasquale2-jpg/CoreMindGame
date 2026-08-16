@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#060b12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Coremind</title>
+<meta name="description" content="COREMIND — a single-player biological evolution sandbox. Discover, analyze, extract, design, deploy, adapt.">
+<!-- Inline so the page stays a single self-contained bundle (see tools/build.mjs)
+     and so no request 404s when it is opened straight off the filesystem. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%230f2e26' stroke='%2333e6b0' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='4' fill='%2333e6b0'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <div id="topbar">
+    <div class="stat" id="stat-biomass" title="Biomass"><i>&#127793;</i><span>0</span></div>
+    <div class="stat" id="stat-energy" title="Energy"><i>&#9889;</i><span>0</span></div>
+    <div class="stat" id="stat-pop" title="Population"><i>&#129440;</i><span>0</span></div>
+    <div class="stat" id="stat-climate" title="Season and weather"><i>&#127777;</i><span>—</span></div>
+    <button id="btn-speed" class="iconbtn" title="Simulation speed">1x</button>
+  </div>
+
+  <div id="stage">
+    <canvas id="world-canvas"></canvas>
+
+    <div id="toast-layer"></div>
+
+    <div id="selection-panel" class="card hidden"></div>
+
+    <div id="cam-controls">
+      <button id="btn-focus-core" class="roundbtn" title="Focus Core">&#8962;</button>
+      <button id="btn-zoom-in" class="roundbtn" title="Zoom in">+</button>
+      <button id="btn-zoom-out" class="roundbtn" title="Zoom out">&minus;</button>
+    </div>
+
+    <div id="depth-controls"></div>
+    <div id="sanctum-meter" class="hidden"></div>
+
+    <div id="directive-toast" class="hidden"></div>
+  </div>
+
+  <div id="tabs">
+    <button data-tab="explore" class="tab active">EXPLORE</button>
+    <button data-tab="analyze" class="tab">ANALYZE<span id="badge-analyze" class="badge hidden">0</span></button>
+    <button data-tab="dna" class="tab">DNA<span id="badge-dna" class="badge hidden">!</span></button>
+    <button data-tab="world" class="tab">WORLD</button>
+  </div>
+
+  <div id="panel-explore" class="panel active">
+    <div id="selection-summary">Tap an organism to select it, or issue a directive to your whole colony.</div>
+    <div id="directive-bar"></div>
+    <button id="btn-open-build" class="bigbtn secondary" style="width:100%;margin:8px 0 0">&#9935; EXCAVATION</button>
+  </div>
+
+  <div id="panel-world" class="panel">
+    <div id="world-readout"></div>
+    <div id="colony-roster"></div>
+  </div>
+
+  <div id="panel-analyze" class="panel">
+    <div id="research-list"></div>
+    <div id="event-feed"></div>
+  </div>
+
+  <div id="designer-overlay" class="sheet tall hidden">
+    <div class="sheet-grip"></div>
+    <div class="sheet-head">
+      <div class="sheet-title">GENOME DESIGNER</div>
+      <button id="btn-designer-close" class="iconbtn">&#10005;</button>
+    </div>
+    <!-- Everything except the action row scrolls together. The fixed-height
+         preview and slot grid together can exceed the sheet, and with them
+         all flex:0 0 auto the CREATE ORGANISM button was pushed off the
+         bottom of the screen and became unclickable. -->
+    <div id="designer-scroll">
+      <div id="designer-preview">
+        <canvas id="preview-canvas" width="240" height="240"></canvas>
+        <div id="designer-cost"></div>
+      </div>
+      <div id="designer-slots"></div>
+      <div id="designer-combo"></div>
+      <div id="designer-stats"></div>
+      <div id="designer-designs"></div>
+    </div>
+    <div id="designer-actions">
+      <button id="btn-save-design" class="bigbtn secondary">SAVE STRAIN</button>
+      <button id="btn-create-organism" class="bigbtn" disabled>CREATE ORGANISM</button>
+    </div>
+  </div>
+
+  <div id="inspect-overlay" class="sheet hidden">
+    <div class="sheet-grip"></div>
+    <div class="sheet-head">
+      <div class="sheet-title" id="inspect-title">DETAILS</div>
+      <button id="btn-inspect-close" class="iconbtn">&#10005;</button>
+    </div>
+    <div id="inspect-body"></div>
+  </div>
+
+  <div id="build-overlay" class="sheet hidden">
+    <div class="sheet-grip"></div>
+    <div class="sheet-head">
+      <div class="sheet-title">EXCAVATION</div>
+      <button id="btn-build-close" class="iconbtn">&#10005;</button>
+    </div>
+    <div id="build-body"></div>
+  </div>
+
+  <!-- Catches taps outside an open sheet so anywhere-but-the-sheet dismisses
+       it. Deliberately not a dimming scrim: the point of a sheet here is that
+       the world stays visible and legible behind it. -->
+  <div id="sheet-catcher" class="hidden"></div>
+
+  <div id="build-banner" class="hidden"></div>
+
+  <div id="boot-overlay" class="overlay">
+    <div class="boot-card">
+      <h1>COREMIND</h1>
+      <p class="tag">a distributed biological intelligence</p>
+      <button id="btn-continue" class="bigbtn hidden">CONTINUE</button>
+      <button id="btn-new-world" class="bigbtn secondary">NEW WORLD</button>
+      <p class="hint">Discover &rarr; Analyze &rarr; Extract &rarr; Design &rarr; Deploy &rarr; Adapt</p>
+    </div>
+  </div>
+
+</div>
+
+<script src="js/core.js"></script>
+<script src="js/traits.js"></script>
+<script src="js/flora.js"></script>
+<script src="js/world.js"></script>
+<script src="js/organism.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/discovery.js"></script>
+<script src="js/climate.js"></script>
+<script src="js/colony.js"></script>
+<script src="js/structures.js"></script>
+<script src="js/coremind.js"></script>
+<script src="js/simulation.js"></script>
+<script src="js/render.js"></script>
+<script src="js/input.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/save.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
